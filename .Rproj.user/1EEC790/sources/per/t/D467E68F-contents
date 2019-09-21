@@ -1,0 +1,243 @@
+library(shiny)
+library(foreign)
+library(MASS)
+library(readr)
+library(tools)
+library(quantreg)
+
+ui <- fluidPage(
+  
+  tags$head(
+    tags$style(
+      HTML(
+        #Checkbox align fix, credit to: https://stackoverflow.com/a/46493086
+        ".checkbox-inline { 
+        margin-left: 0px;
+        margin-right: 10px;
+        }
+        .checkbox-inline+.checkbox-inline {
+        margin-left: 0px;
+        margin-right: 10px;
+        }
+        "
+      )
+    ) 
+  ),
+  
+  h3("Data Analysis"),
+  tabsetPanel(id="content",
+              tabPanel( "Model Selection/Data Upload",
+                        fluidRow(
+                          style = " border-top: solid; 
+                                    border-bottom: solid; 
+                                    padding: 8px; 
+                                    border-width: 2px; ",
+                          column(4,
+                                 h4("Model Selection"),
+                                 selectInput("mod", 
+                                             h5("Model"),
+                                             choices = list("Linear Regression",
+                                                            "Robust Regression (Huber)",
+                                                            "Robust Regression (Bisquare)",
+                                                            "Quantile Regression",
+                                                            "Logit (favored 2-group) Logistic Regression",
+                                                            "Probit (2-group) Logistic Regression"),
+                                             selected = "Linear Regression"
+                                 )
+                          ),
+                          column(2,    
+                                 h4("Input Data"),
+                                 fileInput("file", h5("File input"))
+                          ),
+                          column(6,
+                                 helpText("or"),
+                                 textInput("url",h5("URL input"),
+                                           value="https://stats.idre.ucla.edu/stat/data/crime.dta"),
+                                 actionButton("urlGo","Upload")
+                          )   
+                        ),
+                        fluidRow(
+                          column(6,
+                                 h4("Additional Options (not implemented)"),
+                                 checkboxInput("op1", "Remove NA"),
+                                 checkboxInput("op2", "Quantitative variables only")
+                                 )
+                        )
+                        ),
+              
+              tabPanel( "Variable Selection",
+                        fluidRow(
+                          style = " border-top: solid; 
+                                    border-bottom: solid; 
+                                    padding: 8px; 
+                                    border-width: 2px; ",
+                          column(6,
+                                 h5("Variable selection"),
+                                 tags$div(id="helper1",
+                                          h5("Upload a file to select variables",
+                                             style="color:blue")
+                                 ),
+                                 uiOutput("y_select")
+                          ),
+                          column(6,
+                                 uiOutput("x_select"),
+                                 uiOutput("goButton")
+                          )
+                        )),
+              
+              tabPanel("Output",
+                       h5(textOutput("selection")),
+                       verbatimTextOutput("summary"),
+                       plotOutput("plot")
+              )
+  )
+)
+
+#for testing:
+#cdata <- read.dta("https://stats.idre.ucla.edu/stat/data/crime.dta")
+
+#####################################
+############Server###################
+#####################################
+
+server <- function(input, output, session) {
+  
+  hideTab("content", "Variable Selection")
+  hideTab("content", "Output")
+  #Display model selected
+  output$selection <- renderText({
+    input$mod
+  })
+
+  v <- reactiveValues()  
+  
+  #read in data from file upload -> dat
+  observeEvent(input$file,{
+    url = input$file$datapath
+    tryCatch(
+      {input_data <- switch(file_ext(url),
+                       "csv"=read.csv(url),
+                       "dta"=read.dta(url),
+                       "tsv"=read_tsv(url),
+                       "xls"=read_excel(url),
+                       "xlsx"=read_excel(url)
+      )}, error = function(e){
+        showNotification("Invalid data",type="error",duration=3.5)
+        return()
+      }
+    )
+    req(input_data)
+    v$dat <- input_data
+    showTab("content", "Variable Selection")
+    updateTabsetPanel(session, "content", selected = "Variable Selection")
+  })                          
+  
+  
+  #read in data from url -> dat
+  observeEvent(input$urlGo, {
+    url = input$url
+    type <- file_ext(url)
+    if (type==""){
+      showNotification("Invalid data",type="error",duration=3.5)
+    }
+    tryCatch(
+      {input_data <- switch(file_ext(url),
+                       "csv"=read.csv(url),
+                       "dta"=read.dta(url),
+                       "tsv"=read_tsv(url),
+                       "xls"=read_excel(url),
+                       "xlsx"=read_excel(url)
+      )}, error = function(e){
+        showNotification("Invalid data",type="error",duration=3.5)
+        return()
+      }
+    )
+    req(input_data)
+    v$dat <- input_data
+    showTab("content", "Variable Selection")
+    updateTabsetPanel(session, "content", selected = "Variable Selection")
+  })
+  
+  prep_dat <- function(input_data){
+    return()
+  }
+  
+  #Display predicted variable selection
+  output$y_select <- renderUI({
+    req(v$dat)
+    selectInput("yvar", "Choose variable to predict", colnames(v$dat))
+  })
+  
+  #Display and update predictors selection
+  output$x_select <- renderUI({
+    req(v$dat)
+    vars <- colnames(v$dat)
+    xvars <- vars[-which(vars==input$yvar)]
+    checkboxGroupInput("xvars", "Choose predictors", xvars, inline = T)
+  })
+  
+  #On file upload: replace helper text, add go button
+  output$goButton <- renderUI({
+    req(v$dat)
+    actionButton("go","Run")
+  })
+  
+  #removing helper message
+  observeEvent(c(input$urlGo,input$file), ignoreInit = T, {
+    removeUI(selector="#helper1")
+  })
+  
+  #Run model on go button
+  runTest <- eventReactive(input$go, {
+    if(is.null(input$xvars)){
+      showNotification("Please select predictors",type="error",duration=3.5)
+      req(F)
+    }
+    xv <- input$xvars[1]
+    for (x in input$xvars[-1]){
+      xv <- paste(xv,"+",x)
+    }
+    formula <- as.formula(paste(input$yvar,"~",xv))
+    
+    if (input$mod == "Robust Regression (Bisquare)"){
+      rlm(as.formula(formula),data=v$dat, psi = psi.bisquare)
+    } else if (input$mod == "Quantile Regression") {
+      rq(as.formula(formula), data = v$dat)
+    # } else if (input$mod == "Logit (favored 2-group) Logistic Regression") {
+    #   glm(as.formula(formula), data = v$dat, family = binomial(link = "logit"))
+    # } else if (input$mod == "Probit (2-group) Logistic Regression") {
+    #   glm(as.formula(formula), data = v$dat, family = binomial(link = "probit"))
+    } else{ # no additonal options
+      modf <- switch(input$mod,
+                     "Linear Regression"= lm,
+                     "Robust Regression (Huber)"= rlm)
+      modf(as.formula(formula),data=v$dat)
+    }
+  })
+  
+  #summary
+  output$summary <- renderPrint({
+    summary(runTest())
+  })
+  
+  #plot
+  output$plot <- renderPlot({
+    ran_mod <- runTest()
+    if (nrow(ran_mod$qr$qr) != length(ran_mod$residuals)){
+      plot(runTest(),1)
+    }else{
+      par(mfrow = c(2,2))
+      plot(runTest())
+    }
+  })
+  
+  #switch to output tab on go
+  observeEvent(input$go, {
+    req(runTest())
+    showTab("content", "Output")
+    updateTabsetPanel(session, "content", selected = "Output")
+  }
+  )
+}
+
+shinyApp(ui = ui, server = server)

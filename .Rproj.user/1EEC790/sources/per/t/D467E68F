@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1569014330047.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "485842599",
+    "id" : "D467E68F",
+    "lastKnownWriteTime" : 1569022725,
+    "last_content_update" : 1569022725416,
+    "path" : "C:/Users/Caio Brighenti/Downloads/dataApp (1) (1).R",
+    "project_path" : null,
+    "properties" : {
+        "cursorPosition" : "129,23",
+        "scrollLine" : "96"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

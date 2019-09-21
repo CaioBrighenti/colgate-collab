@@ -1,0 +1,26 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1566239382448.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2090637543",
+    "id" : "98E50D26",
+    "lastKnownWriteTime" : 1569024213,
+    "last_content_update" : 1569024213106,
+    "path" : "~/repositories/colgate-collab/tutorial_app/app.R",
+    "project_path" : "tutorial_app/app.R",
+    "properties" : {
+        "cursorPosition" : "58,4",
+        "scrollLine" : "45",
+        "tempName" : "Untitled1"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
