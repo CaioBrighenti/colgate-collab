@@ -1,5 +1,7 @@
 library(shiny)
 library(ggplot2)
+library(tools)
+library(tidyverse)
 
 ui <- fluidPage(
   
@@ -41,7 +43,7 @@ ui <- fluidPage(
 )
 
 # Define server logic required to draw a histogram ----
-server <- function(input, output) {
+server <- function(input, output, session) {
   
   # Histogram of the Old Faithful Geyser Data ----
   # with requested number of bins
@@ -52,9 +54,9 @@ server <- function(input, output) {
   #    re-executed when inputs (input$bins) change
   # 2. Its output type is a plot
   output$violinPlot <- renderPlot({
-    ToothGrowth$dose <- as.factor(ToothGrowth$dose)
-    ggplot(ToothGrowth, aes(x=dose, y=len)) + 
-      geom_violin()
+    req(v$dat)
+    x<-v$dat[,which(colnames(v$dat) == input$x_var)]
+    y<-v$dat[,which(colnames(v$dat) == input$y_var)]
     
   })
   
@@ -79,7 +81,18 @@ server <- function(input, output) {
       }
     )
     req(input_data)
-    v$dat <- input_data
+    v$dat <- as_tibble(input_data)
+    
+    updateSelectInput(session, "y_var",
+                      label = paste("Select input label", length(colnames(v$dat))),
+                      choices = colnames(v$dat),
+                      selected = tail(colnames(v$dat), 1)
+    )
+    updateSelectInput(session, "x_var",
+                      label = paste("Select input label", length(colnames(v$dat))),
+                      choices = colnames(v$dat),
+                      selected = tail(colnames(v$dat), 1)
+    )
   })  
   
 }
