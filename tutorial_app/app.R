@@ -8,36 +8,57 @@ ui <- fluidPage(
   # App title ----
   titlePanel("Violin Plots"),
   
-  # Sidebar layout with input and output definitions ----
-  sidebarLayout(
-    # Sidebar panel for inputs ----
-    sidebarPanel(
-      h3('Data Upload'),
-      # Input: File browse to load data
-      fileInput(inputId = "dat_file",
-                label = "File input"
-      ),
-      # Input: Drop down to select y var
-      selectInput(inputId = "y_var",
-                  label = "Continuous variable",
-                  choices = c("y1","y2")),
-      # Input: Drop down to select x var
-      selectInput(inputId = "x_var",
-                  label = "Categorical variable",
-                  choices = c("x1","x2"))
-    ),
-    # Main panel for displaying outputs ----
-    mainPanel(
-      # Output: Histogram ----
-      plotOutput(outputId = "violinPlot"),
-      #fluidRow(column(4, verbatimTextOutput("value"))),
-      hr()
-    ),
+  # Main panel for displaying outputs ----
+  mainPanel(
+    # Output: Tabset w/ plot, summary, and table ----
+    tabsetPanel(type = "tabs",
+                id = "tab_panel",
+                tabPanel("Data Upload",
+                   h3('Data Upload'),
+                   # Input: File browse to load data
+                   fileInput(inputId = "dat_file",
+                             label = "File input"
+                   ),
+                   conditionalPanel(condition = "output.fileUploaded == true",
+                                    selectInput(inputId = "continuous_vars",
+                                           label = "Continuous variables to remap as categorical",
+                                           multiple = TRUE,
+                                           choices = NULL),
+                                    selectInput(inputId = "categorical_vars",
+                                                label = "Categorical variables to remap as continuous",
+                                                multiple = TRUE,
+                                                choices = NULL),
+                                    actionButton("plot_button", "Plot my data")
+                                    )
+                ),
+                tabPanel("Violin Plot",
+                  hr(),
+                  sidebarLayout(
+                    sidebarPanel(
+                      # Input: Drop down to select y var
+                      selectInput(inputId = "y_var",
+                                  label = "Continuous variable",
+                                  choices = c("y1","y2")),
+                      # Input: Drop down to select x var
+                      selectInput(inputId = "x_var",
+                                  label = "Categorical variable",
+                                  choices = c("x1","x2"))
+                    ),
+                    mainPanel(
+                      # Output: Histogram ----
+                      plotOutput(outputId = "violinPlot")
+                      )
+                  )
+                )
+    )
   )
 )
 
 # Define server logic required to draw a histogram ----
 server <- function(input, output, session) {
+
+  ## hide tabs until needed
+  hideTab(inputId = "tab_panel", target = "Violin Plot")
   
   ## creates a reactive violin plot from user uploaded data
   output$violinPlot <- renderPlot({
@@ -55,13 +76,14 @@ server <- function(input, output, session) {
       theme_minimal()
     
   })
+
   
   ## init reactive values
   v <- reactiveValues()
   
   ## test output
   output$value <- renderPrint({
-    #str(v$dat)
+    str(v$dat)
   })
   
   
@@ -85,20 +107,75 @@ server <- function(input, output, session) {
     )
     ## ensure data load
     req(input_data)
-    
-    ## update drop downs to use variable names
+    ## update input options
     factor_idx <- which(sapply(input_data, class) %in% c('factor', 'logical'))
-    updateSelectInput(session, "y_var",
+    updateSelectInput(session, "continuous_vars",
                       choices = colnames(input_data[-factor_idx]),
-                      selected = tail(colnames(input_data[-factor_idx]), 1)
+                      selected = NULL
     )
-    updateSelectInput(session, "x_var",
+    updateSelectInput(session, "categorical_vars",
                       choices = colnames(input_data[factor_idx]),
-                      selected = tail(colnames(input_data[factor_idx]), 1)
+                      selected = NULL
     )
     ## put data into reactive value
     v$dat <- input_data
   })  
+  
+  ## keeps track of when file has been succesfuly uploaded
+  output$fileUploaded <- reactive({
+    return(!is.null(v$dat))
+  })
+  outputOptions(output, 'fileUploaded', suspendWhenHidden=FALSE)
+  
+  ## remap variables to/from continuous and categorical
+  observeEvent(input$continuous_vars,{
+    ## grab var and remap to fa ctor
+    var_idx <- which(colnames(v$dat) == input$continuous_vars)
+    v$dat[,var_idx] = as.factor(var_idx)
+    ## update input options
+    factor_idx <- which(sapply(v$dat, class) %in% c('factor', 'logical'))
+    updateSelectInput(session, "continuous_vars",
+                      choices = colnames(v$dat[-factor_idx]),
+                      selected = NULL
+    )
+    updateSelectInput(session, "categorical_vars",
+                      choices = colnames(v$dat[factor_idx]),
+                      selected = NULL
+    )
+  })
+  observeEvent(input$categorical_vars,{
+    ## grab var and remap to numeric
+    var_idx <- which(colnames(v$dat) == input$categorical_vars)
+    v$dat[,var_idx] = as.numeric(var_idx)
+    ## update input options
+    factor_idx <- which(sapply(v$dat, class) %in% c('factor', 'logical'))
+    updateSelectInput(session, "continuous_vars",
+                      choices = colnames(v$dat[-factor_idx]),
+                      selected = NULL
+    )
+    updateSelectInput(session, "categorical_vars",
+                      choices = colnames(v$dat[factor_idx]),
+                      selected = NULL
+    )
+  })
+  
+  ## button to active plot panel
+  observeEvent(input$plot_button, {
+    req(v$dat)
+    ## update drop downs to use variable names
+    factor_idx <- which(sapply(v$dat, class) %in% c('factor', 'logical'))
+    updateSelectInput(session, "y_var",
+                      choices = colnames(v$dat[-factor_idx]),
+                      selected = tail(colnames(v$dat[-factor_idx]), 1)
+    )
+    updateSelectInput(session, "x_var",
+                      choices = colnames(v$dat[factor_idx]),
+                      selected = tail(colnames(v$dat[factor_idx]), 1)
+    )
+    ## make tab visible
+    showTab(inputId = "tab_panel", target = "Violin Plot")
+    updateTabsetPanel(session,"tab_panel","Violin Plot")
+  })
   
 }
 shinyApp(ui, server)
