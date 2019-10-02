@@ -61,7 +61,7 @@ server <- function(input, output, session) {
   hideTab(inputId = "tab_panel", target = "Violin Plot")
   
   ## creates a reactive violin plot from user uploaded data
-  output$violinPlot <- renderPlot({
+  output$violinPlot <- renderPlot(width=500,height=500,{
     ## ensure data loaded, else stop
     req(v$dat)
     ## pull out x and y 
@@ -127,41 +127,14 @@ server <- function(input, output, session) {
   })
   outputOptions(output, 'fileUploaded', suspendWhenHidden=FALSE)
   
-  ## remap variables to/from continuous and categorical
-  observeEvent(input$continuous_vars,{
-    ## grab var and remap to fa ctor
-    var_idx <- which(colnames(v$dat) == input$continuous_vars)
-    v$dat[,var_idx] = as.factor(var_idx)
-    ## update input options
-    factor_idx <- which(sapply(v$dat, class) %in% c('factor', 'logical'))
-    updateSelectInput(session, "continuous_vars",
-                      choices = colnames(v$dat[-factor_idx]),
-                      selected = NULL
-    )
-    updateSelectInput(session, "categorical_vars",
-                      choices = colnames(v$dat[factor_idx]),
-                      selected = NULL
-    )
-  })
-  observeEvent(input$categorical_vars,{
-    ## grab var and remap to numeric
-    var_idx <- which(colnames(v$dat) == input$categorical_vars)
-    v$dat[,var_idx] = as.numeric(var_idx)
-    ## update input options
-    factor_idx <- which(sapply(v$dat, class) %in% c('factor', 'logical'))
-    updateSelectInput(session, "continuous_vars",
-                      choices = colnames(v$dat[-factor_idx]),
-                      selected = NULL
-    )
-    updateSelectInput(session, "categorical_vars",
-                      choices = colnames(v$dat[factor_idx]),
-                      selected = NULL
-    )
-  })
-  
   ## button to active plot panel
   observeEvent(input$plot_button, {
     req(v$dat)
+    ## update categorical/numeric
+    cat_idx <- which(colnames(v$dat) == input$categorical_vars)
+    v$dat[,cat_idx] = as.numeric(v$dat[,cat_idx])
+    cont_idx <- which(colnames(v$dat) == input$continuous_vars)
+    v$dat[,cont_idx] = as.factor(v$dat[,cont_idx])
     ## update drop downs to use variable names
     factor_idx <- which(sapply(v$dat, class) %in% c('factor', 'logical'))
     updateSelectInput(session, "y_var",
